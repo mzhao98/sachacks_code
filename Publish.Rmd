@@ -1,0 +1,144 @@
+---
+title: "Data Insight"
+date: "11/17/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(ggthemes)
+library(readxl)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+theme_set(theme_economist())
+BetaSheet <- read_excel("BetaSheet.xlsx")
+BetaSheet <- BetaSheet %>% group_by(game_id, team) # Sort BetaSheet
+BetaSheet$position <- factor(BetaSheet$position) 
+BetaSheet$archetype <- factor(BetaSheet$archetype)
+# Making Team Sheet
+gameSheet <- data.frame(matrix(155,100)) 
+# Total Team Points
+teamScores <- BetaSheet %>% group_by(game_id, team) %>% summarize(points = sum(points))
+# Toal Team Rebounds
+teamRebounds <- BetaSheet %>% group_by(game_id, team) %>% summarize(rebounds = sum(rebounds))
+# Total Team Assists
+teamAssists <- BetaSheet %>% group_by(game_id, team) %>% summarize(assists = sum(assists))
+# Total Team Blocks
+teamBlocks <- BetaSheet %>% group_by(game_id, team) %>% summarize(blocks = sum(blocks))
+# Total Team Turnovers
+teamTurnovers <- BetaSheet %>% group_by(game_id, team) %>% summarize(turnovers = sum(turnovers))
+# Total Team Steals
+teamSteals <- BetaSheet %>% group_by(game_id, team) %>% summarize(steals = sum(steals))
+# Threes #curry
+teamThrees <- BetaSheet %>% group_by(game_id, team) %>% summarize(threes = sum(three_ptrs))
+### Total Team ### 
+gameSheet <- left_join(teamScores, teamRebounds, by = c("game_id", "team"))
+gameSheet <- left_join(gameSheet, teamAssists, by = c("game_id", "team"))
+gameSheet <- left_join(gameSheet, teamBlocks, by = c("game_id", "team"))
+gameSheet <- left_join(gameSheet, teamTurnovers, by = c("game_id", "team"))
+gameSheet <- left_join(gameSheet, teamSteals, by = c("game_id", "team"))
+gameSheet <- left_join(gameSheet, teamThrees, by = c("game_id", "team"))
+# HomeWin 0/1
+gameSheet[,"winner"] <- c(1,0,0,1,1,0,1,0,1,0,0,1,1,0,0,1,0,1,1,0,0,1,0,1,1,0,0,1,0,1)
+gameSheet[,"pt_dif"] <- c(2,-2,-6,6,5,-5,5,-5, 25,-25,-22,22,6,-6,-10,10,-3,3, 5,-5,-9,9,-4,4,11,-11,-27,27, -1, 1)
+### Subsetting Archtypes
+gameSheet[,"pg"] <- NA
+gameSheet[,"sg"] <- NA
+gameSheet[,"sf"] <- NA
+gameSheet[,"pf"] <- NA
+gameSheet[,"c"] <- NA
+every_pg <- BetaSheet$position == 1
+gameSheet$pg <- BetaSheet$archetype[every_pg]
+every_sg <- BetaSheet$position == 2
+gameSheet$sg <- BetaSheet$archetype[every_sg]
+every_sf <- BetaSheet$position == 3
+gameSheet$sf <- BetaSheet$archetype[every_sf]
+every_pf <- BetaSheet$position == 4
+gameSheet$pf <- BetaSheet$archetype[every_pf]
+every_c <- BetaSheet$position == 5
+gameSheet$c <- BetaSheet$archetype[every_c]
+as.factor(gameSheet$pg)
+as.factor(gameSheet$sg)
+as.factor(gameSheet$sf)
+as.factor(gameSheet$pf)
+as.factor(gameSheet$c)
+
+BetaSheet$points_responsible <- BetaSheet$points + BetaSheet$assists
+
+```
+
+An essential part of a data analysis is the summary process. This page contains descriptive statistics and graphs that provide us with a scope of the data we are dealing with.
+
+##Archetype Summary
+```{r Archetype Summary, echo=FALSE}
+BetaSheet %>%
+  ggplot(aes(x= factor(position,labels =c("Point Guard", "Shooting Guard", "Short Forward", "Power Forward", "Center")) )) + 
+  geom_bar(aes(fill=archetype)) + scale_fill_economist() +
+  ggtitle("Archetype per Position", subtitle = "Refer to Archetype Key") +
+  ylab(" ") + xlab("Position") +
+  labs(fill= "Archetype Color Code")
+```
+
+In this graph, we can see the proportions of archetypes that are selected for every position. We notice that most positions are dominated by one or two archetypes. Only the position of Small Forward has a variable selection of archetype attributes. This is unfortunate, we miss out on variability that could significantly strengthen our model. 
+
+Looking further, we can see that Small Forwards with the "Shot-Creating Slasher" (red) archetype have more sucessful steels per game while those with the "Pure Sharpshooter" (green) archetype score more three-pointers. 
+
+```{r, echo=FALSE}
+BetaSheet[every_sf,] %>% ggplot(aes(x=steals, y=points_responsible, colour=factor(archetype,labels=c("Shot-Creating Slasher","Sharpshooting Shot Creator","Pure Sharpshooter","Slashing Defender","Sharpshooting Slasher"))))+ geom_point(aes(size = three_ptrs)) +
+  labs(colour= "Archetype", size= "# of Three Pointers") + ggtitle("Short Forward Archetype Data")+
+  scale_x_continuous("# of Steals") + ylab("Points Created") 
+```
+
+
+```{r echo=FALSE, warning=FALSE}
+ggplot(gameSheet, aes(factor(winner,labels=c("Loss", "Win")), fill=pf)) + geom_histogram(binwidth = .5, stat="count") +
+  ggtitle("Archetypes of Power Forwards") + ylab("Games") +
+  scale_x_discrete("Game Result") +
+  scale_fill_economist() +
+  labs(fill= "Archetype Color Code")
+```
+
+This graphs shows the tendency that winning teams typically field Power Forwards who have the "Sharpshooting Rim Protector" over any other archetype.
+
+```{r, echo=FALSE}
+
+```
+
+Looking the boxplot below, we might conclude for example that a "Shot-Creating Slasher" Point Guard is the optimal archetype because of their tendency to score more baskets. 
+
+```{r, echo=FALSE}
+ggboxplot(BetaSheet[every_pg,], x="archetype", y="points", ylab="Points (Raw)", xlab= "Archtype", title = "Point Guard Effectiveness",  ggtheme = theme_economist())
+```
+
+However, when we look at the *points created* (that is, the points scored or assisted) by a pointguard, our conclusion needs to be modified. It appears that pointguards with "SharpShooting Playmaker" pass the ball to create scoring more cumilative scoring opportunities.**This leads us to believe that there must be an interaction effect between differet combinations of archetypes**
+
+```{r, echo=FALSE}
+BetaSheet[every_pf,] %>%
+  ggplot(aes(x=points, y=assists, size=three_ptrs, colour=factor(archetype, labels=c("Shot-Creating Slasher", "Sharpshooting Shot Creator", "Sharpshooting Slasher")))) + geom_point() + 
+  geom_smooth(method = lm, se=FALSE) + scale_fill_economist() + ggtitle("Power Forward Archetype Data") + labs(colour= "Archetype", size= "# of Three Pointers") + xlab("Points Scored") +ylab("Assists")
+```
+
+The graph above detailing Power Forward archetypes is interesting for several reasons. First, we can determine that Power Forwards with the "Rebounding Athletic Finisher" archetype generate the most points, both through assists and raw shots.
+Second, we notice that the "Sharpschooting Slasher" archetypes impact the game through their ability to score three-pointers, rather than their ability to create scoring opportunities for others. 
+
+
+```{r, echo=FALSE}
+
+```
+
+```{r, echo=FALSE}
+
+```
+
+```{r, echo=FALSE}
+
+```
+
+```{r, echo=FALSE}
+
+```
+```{r, echo=FALSE}
+
+```
+
